@@ -1,0 +1,81 @@
+steps:
+  - task: InstallAppleCertificate@1
+    displayName: Install Apple Certificate
+    inputs:
+      certSecureFile: ios_Certificates.p12
+      certPwd: $(certificates.pass)
+
+  - task: InstallAppleProvisioningProfile@1
+    displayName: Install privisioning profile
+    inputs:
+      provProfileSecureFile: mobile.mobileprovision
+  
+  - task: npm@1
+    displayName: Restore npm
+    inputs:
+      command: install
+
+  - task: npm@1
+    displayName: Set build number
+    inputs:
+      command: custom
+      customCommand: version "$(app.versionPrefix)$(Build.BuildId)"
+
+  - task: npm@1
+    displayName: Update version
+    inputs:
+      command: custom
+      customCommand: run update-version
+
+  - task: IonicCommand@1
+    displayName: add android
+    inputs:
+      ionicCommand: cordova platform add android
+      ionicArgs: -r -e --nofetch
+
+  - task: IonicCommand@1
+    displayName: add ios
+    inputs:
+      ionicCommand: cordova platform add ios
+      ionicArgs: -r -e --nofetch
+
+  - task: CocoaPods@0
+    displayName: pod install
+    inputs:
+      cwd: platforms/ios  
+
+  - task: IonicCommand@1
+    displayName: build android
+    inputs:
+      ionicCommand: cordova build android
+      ionicArgs:  --release --prod --device
+
+  - task: AndroidSigning@2
+    displayName: Sign android
+    inputs:
+      files: platforms/android/**/*.apk
+      keystoreFile: android.key
+      keystorePass: $(certificates.pass)
+      keystoreAlias: android.keystore
+      keyPass: $(certificates.pass)
+      jarsignerArguments: -verbose -sigalg MD5withRSA -digestalg SHA1
+
+  - task: IonicCommand@1
+    displayName: build ios
+    inputs:
+      ionicCommand: cordova build ios
+      ionicArgs:  --release --prod --device --buildConfig=keys/ios.json
+
+  - task: PublishBuildArtifacts@1
+    displayName: Publish iOS
+    inputs:
+      pathToPublish: platforms/ios/build/device/Flymark.ipa
+      artifactName: iOS
+      artifactType: container
+
+  - task: PublishBuildArtifacts@1
+    displayName: Android
+    inputs:
+      pathToPublish: $(Build.SourcesDirectory)/platforms/android/build/outputs/apk
+      artifactName: Android
+      artifactType: container
